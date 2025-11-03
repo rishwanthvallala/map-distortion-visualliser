@@ -5,17 +5,25 @@ import numpy as np
 import warnings
 import os
 import sys
+import argparse 
 
-# --- IMPORT SCRAPED DATA ---
-# This block replaces the hardcoded dictionary.
+parser = argparse.ArgumentParser(
+    description="Generate maps of various geographic projections."
+)
+parser.add_argument(
+    '--show',
+    action='store_true',  # This makes it a boolean flag
+    help="Display plots interactively instead of saving them to files."
+)
+args = parser.parse_args()
+
 try:
     from scraped_projections import projections as all_projections
 except ImportError:
     print("Error: 'scraped_projections.py' not found.")
     print("Please run 'scrape_projections.py' first to generate the list.")
-    sys.exit(1) # Exit the script if the data file doesn't exist
+    sys.exit(1)
 
-# --- SUPPRESS EXPECTED WARNINGS ---
 warnings.filterwarnings("ignore", category=RuntimeWarning, message="invalid value encountered in normalize")
 
 # --- GEODESIC DOME GENERATION ---
@@ -81,10 +89,14 @@ def plot_projection(world_gdf, grid_gdf, crs_code, title):
     ax.set_axis_off()
     return fig, ax
 
-# --- LOOP AND SAVE ---
-output_dir = "projection_maps_svg"
-os.makedirs(output_dir, exist_ok=True)
-print(f"Preparing to save maps in the '{output_dir}/' directory...")
+# --- LOOP AND SAVE / SHOW ---
+if not args.show:
+    output_dir = "projection_maps_svg"
+    os.makedirs(output_dir, exist_ok=True)
+    print(f"Preparing to save maps in the '{output_dir}/' directory...")
+else:
+    print("Running in interactive display mode. Close each plot window to continue...")
+
 print(f"Loaded {len(all_projections)} projections from scraped_projections.py")
 
 for title, crs_string in all_projections.items():
@@ -92,14 +104,24 @@ for title, crs_string in all_projections.items():
     fig = None
     try:
         fig, ax = plot_projection(world, grid_gdf, crs_string, title)
-        filename = "".join(c for c in title if c.isalnum() or c in (' ','_')).rstrip()
-        filepath = os.path.join(output_dir, f"{filename}.svg")
-        plt.savefig(filepath, bbox_inches='tight', pad_inches=0.05)
-        print(f"--> Successfully saved to {filepath}")
+        
+        if args.show:
+            plt.show()  # Display the plot and wait for it to be closed
+        else:
+            # This is the original saving logic
+            filename = "".join(c for c in title if c.isalnum() or c in (' ','_')).rstrip()
+            filepath = os.path.join(output_dir, f"{filename}.svg")
+            plt.savefig(filepath, bbox_inches='tight', pad_inches=0.05)
+            print(f"--> Successfully saved to {filepath}")
+
     except Exception as e:
         print(f"--> SKIPPING '{title}' due to an error: {e}\n")
     finally:
         if fig:
-            plt.close(fig)
+            plt.close(fig) # Important to close figure in both modes
 
-print(f"\nProcessing complete. All plots saved in the '{output_dir}' folder.")
+# --- NEW: Final message depends on the mode ---
+if not args.show:
+    print(f"\nProcessing complete. All plots saved in the '{output_dir}' folder.")
+else:
+    print("\nFinished displaying all plots.")
